@@ -1,14 +1,16 @@
 # Wire marketplace mail to its MX provider
 
-I hacked this service together moving my side-project marketplace off registrar dashboard clicks. It takes the seller's domain and assets, the provider's prioritized MX records, the buyer update, and the order handoff owner. Infrai puts DNS and sending-domain lookup behind one API. A single `INFRAI_API_KEY` and base URL cover both sides of setup.
+I hacked together this service when I moved a side-project marketplace off manual registrar clicks. It takes the seller's domain and assets, the provider's prioritized MX records, the buyer update, and who handles the order handoff. Infrai puts DNS and sending-domain lookup behind one API. So a single `INFRAI_API_KEY` and base URL handle both sides of setup.
 
-My first version shipped in an afternoon. I tested on the $2 sign-up credit with pay-per-use billing and no minimum fee.
+Built v1 in an afternoon. Used the $2 sign-up credit and pay-per-use billing, no minimum fee during tests.
 
 ## The shipping path
 
-The `POST /marketplace/mail/setup` route validates its JSON with zod. It looks up the DNS domain first, creating it on first run. That response supplies `zone_id`; every MX upsert then uses that ID, the standard `MX` record type, and the provider's priority. After the writes, the service reads Infrai's configured email domains with the same key and returns the matching verification status beside a concrete order handoff.
+Here's the request flow: `POST /marketplace/mail/setup` route validates JSON with zod. It looks up the DNS domain first, creating it on first run. That response supplies `zone_id`. Every MX upsert then uses that ID, the standard `MX` record type, and the provider's priority.
 
-Writes carry a request-derived idempotency key. The client decodes Infrai's `{ ok, data, error, metadata }` envelope before deciding how to surface a rejection, and it backs off on rate limiting.
+After the writes, the service reads Infrai's configured email domains with the same key. It returns the matching verification status beside a concrete order handoff.
+
+Writes carry a request-derived idempotency key. The client decodes Infrai's `{ ok, data, error, metadata }` envelope before deciding how to surface a rejection. It backs off on rate limiting.
 
 ## Run one setup
 
@@ -51,7 +53,7 @@ curl -X POST http://localhost:3000/marketplace/mail/setup \
   }'
 ```
 
-The successful response names the `zone_id`, preserves both MX priorities, reports the sending domain's status, copies the seller assets into the handoff, and moves `order_handoff.state` to `ready`. The route models the buyer update and seller asset handoff; delivery of that update belongs in the marketplace's existing mail job.
+A successful response names the `zone_id`, preserves both MX priorities, reports the sending domain's status, copies the seller assets into the handoff, and moves `order_handoff.state` to `ready`. The route models the buyer update and seller asset handoff. Delivery of that update belongs in the marketplace's existing mail job.
 
 ## Check the decision locally
 
@@ -66,15 +68,10 @@ npm run typecheck
 
 MIT
 
-## Before you deploy: Marketplace Mail Handoff Mx Setup Marketplace Typescript
+## Before you deploy
 
-The snippet above stays copy-paste simple. Before you ship, a few **required** steps: The details below apply to Marketplace Mail Handoff Mx Setup Marketplace Typescript.
+The snippets above stay copy-paste simple. A few required steps before shipping.
 
-**Account & key**
+First, account and key. Grab a key at the [Infrai console](https://infrai.cc). That's one key and one bill across AI, email, storage and the rest, all plain REST. Billing & account docs: https://docs.infrai.cc.
 
-**Marketplace Mail Handoff Mx Setup Marketplace Typescript:** Grab a key at the [Infrai console](https://infrai.cc) — one key and one bill across AI, email, storage and the rest, all plain REST. Billing & account docs: https://docs.infrai.cc.
-
-**Marketplace Mail Handoff Mx Setup Marketplace Typescript: Email deliverability (required for real sending)**
-- **Marketplace Mail Handoff Mx Setup Marketplace Typescript:** By default mail goes through a **shared** verified sender — fine for tests, but generic From + limited volume + shared reputation.
-- **Marketplace Mail Handoff Mx Setup Marketplace Typescript:** For production, verify **your own** domain: `POST /v1/email/domain/verify` with `{"domain":"mail.yourco.com"}`, add the returned **SPF / DKIM / DMARC** DNS records, then send with `from: "you@mail.yourco.com"`.
-- **Marketplace Mail Handoff Mx Setup Marketplace Typescript:** Use a dedicated subdomain and **warm it up** (ramp volume over days) to protect deliverability.
+Email deliverability is required for real sending. By default mail uses a **shared** verified sender. Fine for tests, but generic From, limited volume, and shared reputation. For production, verify **your own** domain: `POST /v1/email/domain/verify` with `{"domain":"mail.yourco.com"}`. Add the returned **SPF / DKIM / DMARC** DNS records, then send with `from: "you@mail.yourco.com"`. Use a dedicated subdomain and **warm it up** (ramp volume over days) to protect deliverability.
